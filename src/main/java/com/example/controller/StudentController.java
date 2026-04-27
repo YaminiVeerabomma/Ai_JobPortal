@@ -1,10 +1,12 @@
 package com.example.controller;
 
+import com.example.DTO.JobPostDTO;
 import com.example.DTO.StudentDTO;
 import com.example.Enum.ExperienceLevel;
 import com.example.Enum.Gender;
 import com.example.Enum.NoticePeriod;
 import com.example.Enum.PreferredJobLocations;
+import com.example.service.JobPostService;
 import com.example.service.StudentService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,6 +14,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.batch.BatchProperties.Job;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -26,7 +29,8 @@ public class StudentController {
 
     @Autowired
     private StudentService studentService;
-
+    @Autowired
+    private JobPostService jobPostService;
 
     // ----------------- Update -----------------
     @Operation(summary = "Update student", description = "Update existing student details")
@@ -98,5 +102,9 @@ public class StudentController {
     @GetMapping("/location/{location}")
     public ResponseEntity<List<StudentDTO>> getStudentsByPreferredLocation(@PathVariable PreferredJobLocations location) {
         return ResponseEntity.ok(studentService.getStudentsByPreferredLocation(location));
+    }
+    @GetMapping("/{userId}/ai-jobs")
+    public List<JobPostDTO> getAiJobs(@PathVariable Long userId) {
+        return jobPostService.getTopMatchingJobs(userId);
     }
 }

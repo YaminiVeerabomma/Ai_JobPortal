@@ -4,14 +4,21 @@ import com.example.DTO.JobPostDTO;
 import com.example.Enum.JobType;
 import com.example.Enum.RequiredExperience;
 import com.example.entity.JobPost;
+import com.example.util.JobScore;
+import com.example.entity.Student;
 import com.example.exception.JobPostNotFoundException;
 import com.example.repository.JobPostRepository;
+import com.example.repository.StudentRepository;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,6 +28,11 @@ public class JobPostService {
 
     @Autowired
     private JobPostRepository jobPostRepository;
+    
+    @Autowired
+    private StudentRepository studentRepository;
+
+
 
     // ---------------- POST JOB ----------------
     public JobPostDTO postJob(JobPostDTO dto) {
@@ -223,7 +235,83 @@ public class JobPostService {
         log.info("✅ {} job(s) found with required experience={}", jobs.size(), requiredExperience);
         return jobs;
     }
+    public List<JobPostDTO> getTopMatchingJobs(Long userId) {
 
+        // 1️⃣ Get student
+        Student student = studentRepository.findById(userId)
+                .orElseThrow(new java.util.function.Supplier<RuntimeException>() {
+                    @Override
+                    public RuntimeException get() {
+                        return new RuntimeException("Student not found");
+                    }
+                });
+
+        // 2️⃣ Clean student skills
+        Set<String> studentSkills = new java.util.HashSet<String>();
+        for (String skill : student.getSkills()) {
+            if (skill != null) {
+                studentSkills.add(skill.trim().toLowerCase());
+            }
+        }
+
+        // 3️⃣ Get all jobs
+        List<JobPost> jobs = jobPostRepository.findAll();
+
+        List<JobScore> scoredJobs = new ArrayList<JobScore>();
+
+        // 4️⃣ Compare jobs
+        for (JobPost job : jobs) {
+
+            String jobSkillsStr = job.getSkills();
+
+            if (jobSkillsStr == null || jobSkillsStr.trim().isEmpty()) {
+                continue;
+            }
+
+            // Convert job skills to set
+            Set<String> jobSkills = new java.util.HashSet<String>();
+            String[] skillsArray = jobSkillsStr.split(",");
+
+            for (int i = 0; i < skillsArray.length; i++) {
+                jobSkills.add(skillsArray[i].trim().toLowerCase());
+            }
+
+            int matchCount = 0;
+
+            // Match skills
+            for (String skill : studentSkills) {
+                if (jobSkills.contains(skill)) {
+                    matchCount++;
+                }
+            }
+
+            // Debug log
+            System.out.println("Job: " + job.getJobTitle() + " | Score: " + matchCount);
+
+            if (matchCount > 0) {
+                scoredJobs.add(new JobScore(job, matchCount));
+            }
+        }
+
+        // 5️⃣ Sort manually (Java 7 style)
+        java.util.Collections.sort(scoredJobs, new java.util.Comparator<JobScore>() {
+            @Override
+            public int compare(JobScore a, JobScore b) {
+                return b.getScore() - a.getScore(); // descending
+            }
+        });
+
+        // 6️⃣ Convert to DTO (top 5)
+        List<JobPostDTO> result = new ArrayList<JobPostDTO>();
+
+        int limit = Math.min(5, scoredJobs.size());
+
+        for (int i = 0; i < limit; i++) {
+            result.add(mapToDTO(scoredJobs.get(i).getJob()));
+        }
+
+        return result;
+    }
     // ---------------- MAP ENTITY TO DTO ----------------
     private JobPostDTO mapToDTO(JobPost job) {
         log.debug("🔧 mapToDTO called for jobId={}", job.getId());
